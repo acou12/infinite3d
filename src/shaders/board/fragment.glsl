@@ -1,11 +1,8 @@
-precision mediump float;
-
-varying vec3 vNormal;
-varying float vRandom;
-varying float vRatio;
-
-const float brightness = 0.6;
+varying vec2 v_uv;
 
 void main() {
-    gl_FragColor = vec4(vNormal * (1.0 - brightness) + vec3(brightness), 1.0);
+    vec3 color1 = vec3(240.0, 217.0, 181.0) / 256.0;
+    vec3 color2 = vec3(181.0, 136.0, 99.0) / 256.0;
+    float n = (mod(floor(v_uv.x * 250.0) + floor(v_uv.y * 250.0), 2.0));
+    gl_FragColor = vec4(color1 * n + color2 * (1.0 - n), 1.0);
 }

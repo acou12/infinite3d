@@ -4,6 +4,10 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import * as dat from "lil-gui";
 import { CylinderGeometry } from "three";
 
+// Shaders
+import boardVertexShader from "./shaders/board/vertex.glsl?raw";
+import boardFragmentShader from "./shaders/board/fragment.glsl?raw";
+
 /**
  * Base
  */
@@ -59,8 +63,7 @@ for (let i = 0; i < 8 * 2; i++) {
       color: WHITE_COLOR,
     })
   );
-  piece.castShadow = true;
-  piece.receiveShadow = true;
+
   piece.position.set(row, 0, col);
   pieces.push({
     mesh: piece,
@@ -79,8 +82,7 @@ for (let i = 0; i < 8 * 2; i++) {
       color: BLACK_COLOR,
     })
   );
-  piece.castShadow = true;
-  piece.receiveShadow = true;
+
   piece.position.set(7 - row, 0, col);
   pieces.push({
     mesh: piece,
@@ -91,35 +93,36 @@ for (let i = 0; i < 8 * 2; i++) {
 }
 
 // Board
-const boardGeometry = new THREE.BoxGeometry(1, 0.1, 1);
-const whiteBoardPiece = new THREE.Mesh(
+const boardGeometry = new THREE.PlaneGeometry(250, 250, 250, 250);
+boardGeometry.rotateX(-Math.PI / 2);
+// const whiteBoardPiece = new THREE.Mesh(
+//   boardGeometry,
+//   new THREE.MeshStandardMaterial({
+//     color: "#f0d9b5",
+//   })
+// );
+// const blackBoardPiece = new THREE.Mesh(
+//   boardGeometry,
+//   new THREE.MeshStandardMaterial({
+//     color: "#b58863",
+//   })
+// );
+
+const board = new THREE.Mesh(
   boardGeometry,
-  new THREE.MeshStandardMaterial({
-    color: "#f0d9b5",
-  })
-);
-const blackBoardPiece = new THREE.Mesh(
-  boardGeometry,
-  new THREE.MeshStandardMaterial({
-    color: "#b58863",
+  new THREE.ShaderMaterial({
+    vertexShader: boardVertexShader,
+    fragmentShader: boardFragmentShader,
   })
 );
 
-whiteBoardPiece.receiveShadow = true;
-blackBoardPiece.receiveShadow = true;
+board.position.y -= 1;
 
-for (let i = -100; i < 100; i++) {
-  for (let j = -100; j < 100; j++) {
-    const piece =
-      (i + j) % 2 === 0 ? whiteBoardPiece.clone() : blackBoardPiece.clone();
-    piece.position.set(i, -1, j);
-    scene.add(piece);
-  }
-}
+scene.add(board);
 
 scene.add(new THREE.AmbientLight("white", 0.5));
-const pointLight = new THREE.DirectionalLight("white", 0.5);
-pointLight.castShadow = true;
+const pointLight = new THREE.PointLight("white", 0.5);
+
 pointLight.position.set(3.5, 3, 3.5);
 scene.add(pointLight);
 
@@ -150,6 +153,14 @@ window.addEventListener("resize", () => {
  * Camera
  */
 
+// const camera = new THREE.OrthographicCamera(
+//   (-1 * sizes.width) / sizes.height,
+//   sizes.width / sizes.height,
+//   1,
+//   -1,
+//   0.01,
+//   100
+// );
 const camera = new THREE.PerspectiveCamera(
   75,
   sizes.width / sizes.height,
@@ -174,7 +185,6 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setClearColor("#ff8000");
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
 
 const guiItems = {
   clearColor: "white",
@@ -185,7 +195,7 @@ gui.addColor(guiItems, "clearColor").onChange(renderer.setClearColor);
 /**
  * Animate
  */
-const clock = new THREE.Clock();
+// const clock = new THREE.Clock();
 
 const raycaster = new THREE.Raycaster();
 
@@ -193,11 +203,10 @@ let hoveredMeshes: THREE.Intersection<PieceMesh>[] = [];
 let selected: number = -1;
 
 const tick = () => {
-  const elapsedTime = clock.getElapsedTime();
+  // const elapsedTime = clock.getElapsedTime();
   const meshes = pieces.map((piece) => piece.mesh);
 
   pieces.forEach((piece) => {
-    const index = pieces.indexOf(piece);
     piece.mesh.material.color.set(
       piece.color === "WHITE" ? WHITE_COLOR : BLACK_COLOR
     );
