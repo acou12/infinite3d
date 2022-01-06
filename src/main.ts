@@ -2,7 +2,27 @@ import "./style.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import * as dat from "lil-gui";
-import { CylinderGeometry } from "three";
+import { CylinderGeometry, Object3D } from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+
+const modelLoader = new GLTFLoader();
+
+let set: THREE.Group;
+
+modelLoader.load("/chess.gltf", (gltf) => {
+  const chess = gltf.scene;
+  set = chess;
+  chess.scale.set(0.014, 0.014, 0.014);
+  chess.position.set(3.36, -1.81, 3.36);
+  scene.add(chess);
+  gui.add(chess.position, "x", -10, 10);
+  gui.add(chess.position, "y", -10, 10);
+  gui.add(chess.position, "z", -10, 10);
+  gui.add(chess.scale, "x", 0, 0.02).onChange((it: number) => {
+    chess.scale.y = it;
+    chess.scale.z = it;
+  });
+});
 
 // Shaders
 import boardVertexShader from "./shaders/board/vertex.glsl?raw";
@@ -17,6 +37,9 @@ const gui = new dat.GUI();
 const canvas = document.querySelector("canvas")!;
 
 const scene = new THREE.Scene();
+
+// TODO: Credit
+// "Chess Board" (https://skfb.ly/6BDGq) by Anthony Yanez is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 
 /**
  * Events
@@ -54,43 +77,43 @@ interface Piece {
 
 const pieces: Piece[] = [];
 
-for (let i = 0; i < 8 * 2; i++) {
-  let row = Math.floor(i / 8);
-  let col = i % 8;
-  const piece = new THREE.Mesh(
-    geometry,
-    new THREE.MeshStandardMaterial({
-      color: WHITE_COLOR,
-    })
-  );
+// for (let i = 0; i < 8 * 2; i++) {
+//   let row = Math.floor(i / 8);
+//   let col = i % 8;
+//   const piece = new THREE.Mesh(
+//     geometry,
+//     new THREE.MeshStandardMaterial({
+//       color: WHITE_COLOR,
+//     })
+//   );
 
-  piece.position.set(row, 0, col);
-  pieces.push({
-    mesh: piece,
-    position: new THREE.Vector2(row, col),
-    color: "WHITE",
-  });
-  scene.add(piece);
-}
+//   piece.position.set(row, 0, col);
+//   pieces.push({
+//     mesh: piece,
+//     position: new THREE.Vector2(row, col),
+//     color: "WHITE",
+//   });
+//   scene.add(piece);
+// }
 
-for (let i = 0; i < 8 * 2; i++) {
-  let row = Math.floor(i / 8);
-  let col = i % 8;
-  const piece = new THREE.Mesh(
-    geometry,
-    new THREE.MeshStandardMaterial({
-      color: BLACK_COLOR,
-    })
-  );
+// for (let i = 0; i < 8 * 2; i++) {
+//   let row = Math.floor(i / 8);
+//   let col = i % 8;
+//   const piece = new THREE.Mesh(
+//     geometry,
+//     new THREE.MeshStandardMaterial({
+//       color: BLACK_COLOR,
+//     })
+//   );
 
-  piece.position.set(7 - row, 0, col);
-  pieces.push({
-    mesh: piece,
-    position: new THREE.Vector2(7 - row, col),
-    color: "BLACK",
-  });
-  scene.add(piece);
-}
+//   piece.position.set(7 - row, 0, col);
+//   pieces.push({
+//     mesh: piece,
+//     position: new THREE.Vector2(7 - row, col),
+//     color: "BLACK",
+//   });
+//   scene.add(piece);
+// }
 
 // Board
 const boardGeometry = new THREE.PlaneGeometry(250, 250, 250, 250);
@@ -142,7 +165,7 @@ window.addEventListener("resize", () => {
   sizes.width = window.innerWidth;
   sizes.height = window.innerHeight;
 
-  camera.aspect = sizes.width / sizes.height;
+  // camera.aspect = sizes.width / sizes.height;
   camera.updateProjectionMatrix();
 
   renderer.setSize(sizes.width, sizes.height);
