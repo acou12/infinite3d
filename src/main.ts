@@ -10,7 +10,7 @@ import boardFragmentShader from "./shaders/board/fragment.glsl?raw";
 
 const physicsWorld = new CANNON.World();
 
-physicsWorld.gravity.set(0, -9.82, 0);
+physicsWorld.gravity.set(0, -15, 0);
 
 const plane = new CANNON.Body({
   mass: 0,
@@ -25,11 +25,11 @@ const bowlingBallMesh = new THREE.Mesh(
 
 const bowlingBallPhysics = new CANNON.Body({
   mass: 1500,
-  position: new CANNON.Vec3(3.5, 20, -100),
+  position: new CANNON.Vec3(100, 2, 0.5),
   shape: new CANNON.Sphere(1),
 });
 
-bowlingBallPhysics.velocity.set(0, 0, 30);
+bowlingBallPhysics.velocity.set(-100, 0, 0);
 
 // bowlingBallPhysics.velocity.set(-30, 0, 0);
 
@@ -116,6 +116,7 @@ function addPiece(
   const threeObject = model!.clone();
 
   threeObject.traverse((child) => {
+    console.log(child);
     if (child instanceof THREE.Mesh) {
       child.material = new THREE.MeshStandardMaterial(
         color === "WHITE" ? { color: "#fff" } : { color: "#222" }
@@ -158,19 +159,20 @@ function addPieces() {
 
   addPiece(ROOK, 0, 0, "WHITE");
   addPiece(ROOK, 7, 0, "WHITE");
-  addPiece(ROOK, 0, 7, "BLACK");
-  addPiece(ROOK, 7, 7, "BLACK");
   addPiece(KNIGHT, 1, 0, "WHITE");
   addPiece(KNIGHT, 6, 0, "WHITE");
-  addPiece(KNIGHT, 1, 7, "BLACK");
-  addPiece(KNIGHT, 6, 7, "BLACK");
   addPiece(BISHOP, 2, 0, "WHITE");
   addPiece(BISHOP, 5, 0, "WHITE");
+  addPiece(QUEEN, 3, 0, "WHITE");
+  addPiece(KING, 4, 0, "WHITE");
+
+  addPiece(ROOK, 0, 7, "BLACK");
+  addPiece(ROOK, 7, 7, "BLACK");
+  addPiece(KNIGHT, 1, 7, "BLACK");
+  addPiece(KNIGHT, 6, 7, "BLACK");
   addPiece(BISHOP, 2, 7, "BLACK");
   addPiece(BISHOP, 5, 7, "BLACK");
-  addPiece(QUEEN, 3, 0, "WHITE");
   addPiece(QUEEN, 3, 7, "BLACK");
-  addPiece(KING, 4, 0, "WHITE");
   addPiece(KING, 4, 7, "BLACK");
 }
 
@@ -198,14 +200,27 @@ window.addEventListener("mousemove", (event: MouseEvent) => {
   mousePosition.y = -(event.clientY / window.innerHeight) * 2 + 1;
 });
 
-window.addEventListener("click", () => {
+function popPiece() {
   if (hoveredMeshes.length > 0) {
     const mesh = hoveredMeshes[0].object;
-    const piece = pieces.filter((p) => p.threeObject === mesh)[0];
+    const piece = pieces.filter((p) => {
+      var correct = false;
+      p.threeObject.traverse((child) => {
+        if (child === mesh) {
+          correct = true;
+        }
+      });
+      return correct;
+    })[0];
     piece.physicsBody.velocity.set(0, 10, 0);
-    piece.physicsBody.angularVelocity.set(1, 2, 3);
+    piece.physicsBody.angularVelocity.x += (Math.random() - 0.5) * 3;
+    piece.physicsBody.angularVelocity.y += (Math.random() - 0.5) * 3;
+    piece.physicsBody.angularVelocity.z += (Math.random() - 0.5) * 3;
   }
-});
+}
+
+window.addEventListener("click", popPiece);
+window.addEventListener("touchstart", popPiece);
 
 /**
  * Textures
@@ -321,7 +336,6 @@ var fixedTimeStep = 1.0 / 60.0;
 var maxSubSteps = 3;
 
 const tick = () => {
-  // const elapsedTime = clock.getElapsedTime();
   const meshes = pieces.map((piece) => piece.threeObject);
 
   pieces.forEach((piece) => {
@@ -336,8 +350,13 @@ const tick = () => {
   const result = raycaster.intersectObjects(meshes);
   hoveredMeshes = result as THREE.Intersection<PieceMesh>[];
   if (result.length > 0) {
-    const mesh = hoveredMeshes[0].object;
-    mesh.material.color.set("#f00");
+    const mesh = hoveredMeshes[0].object.parent!;
+    console.log(mesh);
+    mesh!.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.material.color.set("#f00");
+      }
+    });
   }
 
   // if (selected > -1) meshes[selected].material.color.set("#0f0");
