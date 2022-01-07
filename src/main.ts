@@ -7,6 +7,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import * as CANNON from "cannon";
 import boardVertexShader from "./shaders/board/vertex.glsl?raw";
 import boardFragmentShader from "./shaders/board/fragment.glsl?raw";
+import { AnimationDispatcher } from "./animation";
 
 const physicsWorld = new CANNON.World();
 
@@ -26,12 +27,8 @@ const bowlingBallMesh = new THREE.Mesh(
 const bowlingBallPhysics = new CANNON.Body({
   mass: 1500,
   position: new CANNON.Vec3(100, 2, 0.5),
-  shape: new CANNON.Sphere(1),
+  shape: new CANNON.Sphere(bowlingBallMesh.geometry.parameters.radius),
 });
-
-bowlingBallPhysics.velocity.set(-100, 0, 0);
-
-// bowlingBallPhysics.velocity.set(-30, 0, 0);
 
 physicsWorld.addBody(bowlingBallPhysics);
 
@@ -48,29 +45,12 @@ interface PieceType {
   model?: THREE.Object3D;
 }
 
-const PAWN: PieceType = {
-  modelFileName: "pawn.gltf",
-};
-
-const BISHOP: PieceType = {
-  modelFileName: "bishop.gltf",
-};
-
-const KNIGHT: PieceType = {
-  modelFileName: "knight.gltf",
-};
-
-const ROOK: PieceType = {
-  modelFileName: "rook.gltf",
-};
-
-const KING: PieceType = {
-  modelFileName: "king.gltf",
-};
-
-const QUEEN: PieceType = {
-  modelFileName: "queen.gltf",
-};
+const PAWN: PieceType = { modelFileName: "pawn.gltf" };
+const BISHOP: PieceType = { modelFileName: "bishop.gltf" };
+const KNIGHT: PieceType = { modelFileName: "knight.gltf" };
+const ROOK: PieceType = { modelFileName: "rook.gltf" };
+const KING: PieceType = { modelFileName: "king.gltf" };
+const QUEEN: PieceType = { modelFileName: "queen.gltf" };
 
 const pieceTypes = [PAWN, BISHOP, KNIGHT, ROOK, KING, QUEEN];
 
@@ -83,13 +63,12 @@ interface Piece {
 }
 
 const pieces: Piece[] = [];
-// let selectedPiece: Piece | null = null;
 
 let numLoaded = 0;
 
 pieceTypes.forEach((type) => {
   const { modelFileName } = type;
-  modelLoader.load(`/${modelFileName}`, (gltf) => {
+  modelLoader.load(`/models/${modelFileName}`, (gltf) => {
     const model = gltf.scene;
     type.model = model;
     model.traverse((child) => {
@@ -99,7 +78,7 @@ pieceTypes.forEach((type) => {
     });
     numLoaded++;
     if (numLoaded >= pieceTypes.length) {
-      addPieces();
+      afterTexturesLoaded();
     }
   });
 });
@@ -116,7 +95,6 @@ function addPiece(
   const threeObject = model!.clone();
 
   threeObject.traverse((child) => {
-    console.log(child);
     if (child instanceof THREE.Mesh) {
       child.material = new THREE.MeshStandardMaterial(
         color === "WHITE" ? { color: "#fff" } : { color: "#222" }
@@ -139,7 +117,6 @@ function addPiece(
     ),
   });
 
-  // physicsBody.angularVelocity.set(10, 10);
   physicsWorld.addBody(physicsBody);
 
   pieces.push({
@@ -163,8 +140,8 @@ function addPieces() {
   addPiece(KNIGHT, 6, 0, "WHITE");
   addPiece(BISHOP, 2, 0, "WHITE");
   addPiece(BISHOP, 5, 0, "WHITE");
-  addPiece(QUEEN, 3, 0, "WHITE");
-  addPiece(KING, 4, 0, "WHITE");
+  addPiece(QUEEN, 4, 0, "WHITE");
+  addPiece(KING, 3, 0, "WHITE");
 
   addPiece(ROOK, 0, 7, "BLACK");
   addPiece(ROOK, 7, 7, "BLACK");
@@ -172,13 +149,9 @@ function addPieces() {
   addPiece(KNIGHT, 6, 7, "BLACK");
   addPiece(BISHOP, 2, 7, "BLACK");
   addPiece(BISHOP, 5, 7, "BLACK");
-  addPiece(QUEEN, 3, 7, "BLACK");
-  addPiece(KING, 4, 7, "BLACK");
+  addPiece(QUEEN, 4, 7, "BLACK");
+  addPiece(KING, 3, 7, "BLACK");
 }
-
-/**
- * Base
- */
 
 const gui = new dat.GUI();
 
@@ -186,14 +159,11 @@ const canvas = document.querySelector("canvas")!;
 
 const scene = new THREE.Scene();
 
-scene.add(bowlingBallMesh);
+// scene.add(bowlingBallMesh);
 
 // TODO: Credit
 // "Chess Board" (https://skfb.ly/6BDGq) by Anthony Yanez is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 
-/**
- * Events
- */
 const mousePosition: THREE.Vector2 = new THREE.Vector2();
 window.addEventListener("mousemove", (event: MouseEvent) => {
   mousePosition.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -205,7 +175,7 @@ window.addEventListener("touchmove", (event: TouchEvent) => {
 });
 
 function popPiece(event: MouseEvent | TouchEvent) {
-  if (event instanceof TouchEvent) {
+  if (window.TouchEvent && event instanceof TouchEvent) {
     mousePosition.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
     mousePosition.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
   }
@@ -233,15 +203,6 @@ window.addEventListener("touchstart", popPiece);
 
 type PieceMesh = THREE.Mesh<CylinderGeometry, THREE.MeshStandardMaterial>;
 
-// interface Piece {
-//   mesh: PieceMesh;
-//   position: THREE.Vector2;
-//   color: "WHITE" | "BLACK";
-// }
-
-// const pieces: Piece[] = [];
-
-// Board
 const boardGeometry = new THREE.PlaneGeometry(250, 250, 250, 250);
 boardGeometry.rotateX(-Math.PI / 2);
 
@@ -265,9 +226,6 @@ gui.add(pointLight.position, "x", -5, 5);
 gui.add(pointLight.position, "y", -5, 5);
 gui.add(pointLight.position, "z", -5, 5);
 
-/**
- * Sizes
- */
 const sizes = {
   width: window.innerWidth,
   height: window.innerHeight,
@@ -284,36 +242,38 @@ window.addEventListener("resize", () => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 });
 
-/**
- * Camera
- */
-
-// const camera = new THREE.OrthographicCamera(
-//   (-1 * sizes.width) / sizes.height,
-//   sizes.width / sizes.height,
-//   1,
-//   -1,
-//   0.01,
-//   100
-// );
 const camera = new THREE.PerspectiveCamera(
   75,
   sizes.width / sizes.height,
   0.1,
   100
 );
-camera.position.set(3, 3, 12);
+camera.position.set(10, 5, 10);
 camera.lookAt(3.5, 0, 3.5);
 scene.add(camera);
 
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
-// controls.enablePan = false;
 controls.target.set(3.5, 0, 3.5);
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.1;
+let lastCameraPosition = new THREE.Vector3();
+controls.addEventListener("change", () => {
+  const cameraPosition = camera.position.clone();
+  if (
+    cameraPosition
+      .clone()
+      .sub(lastCameraPosition)
+      .clone()
+      .cross(lastCameraPosition.clone().sub(controls.target)).y > 0
+  ) {
+    controls.autoRotateSpeed = 0.1;
+  } else {
+    controls.autoRotateSpeed = -0.1;
+  }
+  lastCameraPosition = cameraPosition;
+});
 
-/**
- * Renderer
- */
 const renderer = new THREE.WebGLRenderer({
   canvas: canvas,
 });
@@ -327,45 +287,147 @@ const guiItems = {
 
 gui.addColor(guiItems, "clearColor").onChange(renderer.setClearColor);
 
-/**
- * Animate
- */
 const clock = new THREE.Clock();
 
 const raycaster = new THREE.Raycaster();
 
 let hoveredMeshes: THREE.Intersection<PieceMesh>[] = [];
 
-var fixedTimeStep = 1.0 / 60.0;
-var maxSubSteps = 3;
+// var fixedTimeStep = 1.0 / 60.0;
+// var maxSubSteps = 3;
 
-const tick = () => {
+const animationDispatcher = new AnimationDispatcher();
+
+const moves: [[number, number], [number, number]][] = [
+  [
+    [3, 1],
+    [3, 3],
+  ],
+  [
+    [3, 6],
+    [3, 4],
+  ],
+  [
+    [1, 0],
+    [2, 2],
+  ],
+  [
+    [6, 7],
+    [5, 5],
+  ],
+  [
+    [2, 0],
+    [5, 3],
+  ],
+  [
+    [5, 5],
+    [4, 3],
+  ],
+  [
+    [2, 2],
+    [3, 4],
+  ],
+  [
+    [4, 7],
+    [1, 4],
+  ],
+  [
+    [3, 4],
+    [2, 6],
+  ],
+  [
+    [1, 4],
+    [1, 1],
+  ],
+  [
+    [0, 0],
+    [2, 0],
+  ],
+  [
+    [1, 1],
+    [3, 3],
+  ],
+  [
+    [5, 3],
+    [3, 1],
+  ],
+  [
+    [4, 3],
+    [2, 2], // mate!
+  ],
+];
+
+function afterTexturesLoaded() {
+  addPieces();
+  movePieces(moves);
+}
+
+function movePieces(moves: [[number, number], [number, number]][]) {
+  const [from, to] = moves[0];
+  const [x1, y1] = from;
+  const [x2, y2] = to;
+  const piece = pieces.filter((p) => {
+    return p.position.x === x1 && p.position.y === y1;
+  })[0];
+  const pieceAt = pieces.filter((p) => {
+    return p.position.x === x2 && p.position.y === y2;
+  })[0];
+  if (!piece) {
+    throw new Error("Piece not found");
+  }
+  if (pieceAt) {
+    animationDispatcher.slide({
+      position: pieceAt.threeObject.position,
+      to: pieceAt.threeObject.position.clone().setY(20),
+      duration: 1.5,
+      type: "SLIDE",
+      doneCallback: () => {
+        pieces.splice(pieces.indexOf(pieceAt), 1);
+      },
+    });
+  }
+  piece.position = new THREE.Vector2(x2, y2);
+  animationDispatcher.slide({
+    position: piece.threeObject.position,
+    to: new THREE.Vector3(x2, 0, y2).setY(piece.threeObject.position.y),
+    duration: 1.5,
+    type: piece.type === KNIGHT ? "JUMP" : "SLIDE",
+    doneCallback: () => {
+      if (moves.length > 1) {
+        movePieces(moves.slice(1));
+      }
+    },
+  });
+}
+
+function tick() {
+  const delta = clock.getDelta();
+
   hoverCheck();
 
-  // if (selected > -1) meshes[selected].material.color.set("#0f0");
-
   controls.update();
+  animationDispatcher.update(delta);
 
-  pieces.forEach((piece) => {
-    piece.threeObject.position.x = piece.physicsBody.position.x;
-    piece.threeObject.position.y = piece.physicsBody.position.y;
-    piece.threeObject.position.z = piece.physicsBody.position.z;
+  // pieces.forEach((piece) => {
+  //   piece.threeObject.position.x = piece.physicsBody.position.x;
+  //   piece.threeObject.position.y = piece.physicsBody.position.y;
+  //   piece.threeObject.position.z = piece.physicsBody.position.z;
 
-    piece.threeObject.quaternion.x = piece.physicsBody.quaternion.x;
-    piece.threeObject.quaternion.y = piece.physicsBody.quaternion.y;
-    piece.threeObject.quaternion.z = piece.physicsBody.quaternion.z;
-    piece.threeObject.quaternion.w = piece.physicsBody.quaternion.w;
-  });
+  //   piece.threeObject.quaternion.x = piece.physicsBody.quaternion.x;
+  //   piece.threeObject.quaternion.y = piece.physicsBody.quaternion.y;
+  //   piece.threeObject.quaternion.z = piece.physicsBody.quaternion.z;
+  //   piece.threeObject.quaternion.w = piece.physicsBody.quaternion.w;
+  // });
 
-  bowlingBallMesh.position.x = bowlingBallPhysics.position.x;
-  bowlingBallMesh.position.y = bowlingBallPhysics.position.y;
-  bowlingBallMesh.position.z = bowlingBallPhysics.position.z;
+  // bowlingBallMesh.position.x = bowlingBallPhysics.position.x;
+  // bowlingBallMesh.position.y = bowlingBallPhysics.position.y;
+  // bowlingBallMesh.position.z = bowlingBallPhysics.position.z;
 
-  physicsWorld.step(fixedTimeStep, clock.getDelta(), maxSubSteps);
+  // physicsWorld.step(fixedTimeStep, clock.getDelta(), maxSubSteps);
   renderer.render(scene, camera);
 
   window.requestAnimationFrame(tick);
-};
+}
 
 tick();
 
@@ -385,7 +447,6 @@ function hoverCheck() {
   hoveredMeshes = result as THREE.Intersection<PieceMesh>[];
   if (result.length > 0) {
     const mesh = hoveredMeshes[0].object.parent!;
-    console.log(mesh);
     mesh!.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.material.color.set("#f00");
