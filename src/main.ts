@@ -83,7 +83,7 @@ interface Piece {
 }
 
 const pieces: Piece[] = [];
-let selectedPiece: Piece | null = null;
+// let selectedPiece: Piece | null = null;
 
 let numLoaded = 0;
 
@@ -199,8 +199,17 @@ window.addEventListener("mousemove", (event: MouseEvent) => {
   mousePosition.x = (event.clientX / window.innerWidth) * 2 - 1;
   mousePosition.y = -(event.clientY / window.innerHeight) * 2 + 1;
 });
+window.addEventListener("touchmove", (event: TouchEvent) => {
+  mousePosition.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
+  mousePosition.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
+});
 
-function popPiece() {
+function popPiece(event: MouseEvent | TouchEvent) {
+  if (event instanceof TouchEvent) {
+    mousePosition.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
+    mousePosition.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
+  }
+  hoverCheck();
   if (hoveredMeshes.length > 0) {
     const mesh = hoveredMeshes[0].object;
     const piece = pieces.filter((p) => {
@@ -221,11 +230,6 @@ function popPiece() {
 
 window.addEventListener("click", popPiece);
 window.addEventListener("touchstart", popPiece);
-
-/**
- * Textures
- */
-const geometry = new THREE.CylinderGeometry(0.4, 0.4, 2, 32, 32);
 
 type PieceMesh = THREE.Mesh<CylinderGeometry, THREE.MeshStandardMaterial>;
 
@@ -336,28 +340,7 @@ var fixedTimeStep = 1.0 / 60.0;
 var maxSubSteps = 3;
 
 const tick = () => {
-  const meshes = pieces.map((piece) => piece.threeObject);
-
-  pieces.forEach((piece) => {
-    piece.threeObject.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.material.color.set(piece.color === "WHITE" ? "#fff" : "#222");
-      }
-    });
-  });
-
-  raycaster.setFromCamera(mousePosition, camera);
-  const result = raycaster.intersectObjects(meshes);
-  hoveredMeshes = result as THREE.Intersection<PieceMesh>[];
-  if (result.length > 0) {
-    const mesh = hoveredMeshes[0].object.parent!;
-    console.log(mesh);
-    mesh!.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.material.color.set("#f00");
-      }
-    });
-  }
+  hoverCheck();
 
   // if (selected > -1) meshes[selected].material.color.set("#0f0");
 
@@ -385,3 +368,28 @@ const tick = () => {
 };
 
 tick();
+
+function hoverCheck() {
+  const meshes = pieces.map((piece) => piece.threeObject);
+
+  pieces.forEach((piece) => {
+    piece.threeObject.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.material.color.set(piece.color === "WHITE" ? "#fff" : "#222");
+      }
+    });
+  });
+
+  raycaster.setFromCamera(mousePosition, camera);
+  const result = raycaster.intersectObjects(meshes);
+  hoveredMeshes = result as THREE.Intersection<PieceMesh>[];
+  if (result.length > 0) {
+    const mesh = hoveredMeshes[0].object.parent!;
+    console.log(mesh);
+    mesh!.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.material.color.set("#f00");
+      }
+    });
+  }
+}
