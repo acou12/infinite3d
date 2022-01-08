@@ -153,8 +153,6 @@ function addPieces() {
   addPiece(KING, 3, 7, "BLACK");
 }
 
-const gui = new dat.GUI();
-
 const canvas = document.querySelector("canvas")!;
 
 const scene = new THREE.Scene();
@@ -165,6 +163,9 @@ const scene = new THREE.Scene();
 // "Chess Board" (https://skfb.ly/6BDGq) by Anthony Yanez is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 
 const mousePosition: THREE.Vector2 = new THREE.Vector2();
+
+let selectedPiece: Piece | null = null;
+
 window.addEventListener("mousemove", (event: MouseEvent) => {
   mousePosition.x = (event.clientX / window.innerWidth) * 2 - 1;
   mousePosition.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -174,7 +175,7 @@ window.addEventListener("touchmove", (event: TouchEvent) => {
   mousePosition.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
 });
 
-function popPiece(event: MouseEvent | TouchEvent) {
+function handleClick(event: MouseEvent | TouchEvent) {
   if (window.TouchEvent && event instanceof TouchEvent) {
     mousePosition.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
     mousePosition.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
@@ -191,15 +192,26 @@ function popPiece(event: MouseEvent | TouchEvent) {
       });
       return correct;
     })[0];
-    piece.physicsBody.velocity.set(0, 10, 0);
-    piece.physicsBody.angularVelocity.x += (Math.random() - 0.5) * 3;
-    piece.physicsBody.angularVelocity.y += (Math.random() - 0.5) * 3;
-    piece.physicsBody.angularVelocity.z += (Math.random() - 0.5) * 3;
+    selectedPiece = piece;
+  } else if (selectedPiece != null) {
+    const boardRaycaster = new THREE.Raycaster();
+    boardRaycaster.setFromCamera(mousePosition, camera);
+    const boardIntersection = boardRaycaster.intersectObject(board);
+    if (boardIntersection.length > 0) {
+      const { x, z } = boardIntersection[0].point;
+      const [snappedX, snappedZ] = [Math.floor(x + 0.5), Math.floor(z + 0.5)];
+      const newTurn = turn === "WHITE" ? "BLACK" : "WHITE";
+      turn = null;
+      movePiece(selectedPiece, new THREE.Vector2(snappedX, snappedZ), () => {
+        turn = newTurn;
+      });
+      selectedPiece = null;
+    }
   }
 }
 
-window.addEventListener("click", popPiece);
-window.addEventListener("touchstart", popPiece);
+window.addEventListener("click", handleClick);
+window.addEventListener("touchstart", handleClick);
 
 type PieceMesh = THREE.Mesh<CylinderGeometry, THREE.MeshStandardMaterial>;
 
@@ -221,10 +233,6 @@ const pointLight = new THREE.PointLight("white", 0.5);
 
 pointLight.position.set(3.5, 3, 3.5);
 scene.add(pointLight);
-
-gui.add(pointLight.position, "x", -5, 5);
-gui.add(pointLight.position, "y", -5, 5);
-gui.add(pointLight.position, "z", -5, 5);
 
 const sizes = {
   width: window.innerWidth,
@@ -255,7 +263,7 @@ scene.add(camera);
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.target.set(3.5, 0, 3.5);
-controls.autoRotate = true;
+controls.autoRotate = false;
 controls.autoRotateSpeed = 0.1;
 let lastCameraPosition = new THREE.Vector3();
 controls.addEventListener("change", () => {
@@ -285,8 +293,6 @@ const guiItems = {
   clearColor: "white",
 };
 
-gui.addColor(guiItems, "clearColor").onChange(renderer.setClearColor);
-
 const clock = new THREE.Clock();
 
 const raycaster = new THREE.Raycaster();
@@ -296,85 +302,42 @@ let hoveredMeshes: THREE.Intersection<PieceMesh>[] = [];
 // var fixedTimeStep = 1.0 / 60.0;
 // var maxSubSteps = 3;
 
-const animationDispatcher = new AnimationDispatcher();
+function hoverCheck() {
+  const theRightPieces = pieces.filter((p) => p.color === turn);
 
-const moves: [[number, number], [number, number]][] = [
-  [
-    [3, 1],
-    [3, 3],
-  ],
-  [
-    [3, 6],
-    [3, 4],
-  ],
-  [
-    [1, 0],
-    [2, 2],
-  ],
-  [
-    [6, 7],
-    [5, 5],
-  ],
-  [
-    [2, 0],
-    [5, 3],
-  ],
-  [
-    [5, 5],
-    [4, 3],
-  ],
-  [
-    [2, 2],
-    [3, 4],
-  ],
-  [
-    [4, 7],
-    [1, 4],
-  ],
-  [
-    [3, 4],
-    [2, 6],
-  ],
-  [
-    [1, 4],
-    [1, 1],
-  ],
-  [
-    [0, 0],
-    [2, 0],
-  ],
-  [
-    [1, 1],
-    [3, 3],
-  ],
-  [
-    [5, 3],
-    [3, 1],
-  ],
-  [
-    [4, 3],
-    [2, 2], // mate!
-  ],
-];
+  const meshes = theRightPieces.map((piece) => piece.threeObject);
+
+  theRightPieces.forEach((piece) => {
+    piece.threeObject.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.material.color.set(piece.color === "WHITE" ? "#fff" : "#222");
+      }
+    });
+  });
+
+  raycaster.setFromCamera(mousePosition, camera);
+  const result = raycaster.intersectObjects(meshes);
+  hoveredMeshes = result as THREE.Intersection<PieceMesh>[];
+  if (result.length > 0) {
+    const mesh = hoveredMeshes[0].object;
+    mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.material.color.set("#f00");
+      }
+    });
+  }
+}
+
+const animationDispatcher = new AnimationDispatcher();
 
 function afterTexturesLoaded() {
   addPieces();
-  movePieces(moves);
 }
 
-function movePieces(moves: [[number, number], [number, number]][]) {
-  const [from, to] = moves[0];
-  const [x1, y1] = from;
-  const [x2, y2] = to;
-  const piece = pieces.filter((p) => {
-    return p.position.x === x1 && p.position.y === y1;
-  })[0];
-  const pieceAt = pieces.filter((p) => {
-    return p.position.x === x2 && p.position.y === y2;
-  })[0];
-  if (!piece) {
-    throw new Error("Piece not found");
-  }
+let turn: Color | null = "WHITE";
+
+function movePiece(piece: Piece, to: THREE.Vector2, doneCallback?: () => void) {
+  const pieceAt = pieces.filter((p) => p.position.equals(to))[0];
   if (pieceAt) {
     animationDispatcher.slide({
       position: pieceAt.threeObject.position,
@@ -382,21 +345,19 @@ function movePieces(moves: [[number, number], [number, number]][]) {
       duration: 1.5,
       type: "SLIDE",
       doneCallback: () => {
-        pieces.splice(pieces.indexOf(pieceAt), 1);
+        scene.remove(pieceAt.threeObject);
+        pieceAt.threeObject.material?.dispose();
+        pieceAt.threeObject.geometry?.dispose();
       },
     });
   }
-  piece.position = new THREE.Vector2(x2, y2);
+  piece.position = to;
   animationDispatcher.slide({
     position: piece.threeObject.position,
-    to: new THREE.Vector3(x2, 0, y2).setY(piece.threeObject.position.y),
+    to: new THREE.Vector3(to.x, 0, to.y).setY(piece.threeObject.position.y),
     duration: 1.5,
     type: piece.type === KNIGHT ? "JUMP" : "SLIDE",
-    doneCallback: () => {
-      if (moves.length > 1) {
-        movePieces(moves.slice(1));
-      }
-    },
+    doneCallback,
   });
 }
 
@@ -407,6 +368,14 @@ function tick() {
 
   controls.update();
   animationDispatcher.update(delta);
+
+  if (selectedPiece) {
+    selectedPiece.threeObject.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.material.color.set("#f00");
+      }
+    });
+  }
 
   // pieces.forEach((piece) => {
   //   piece.threeObject.position.x = piece.physicsBody.position.x;
@@ -430,27 +399,3 @@ function tick() {
 }
 
 tick();
-
-function hoverCheck() {
-  const meshes = pieces.map((piece) => piece.threeObject);
-
-  pieces.forEach((piece) => {
-    piece.threeObject.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.material.color.set(piece.color === "WHITE" ? "#fff" : "#222");
-      }
-    });
-  });
-
-  raycaster.setFromCamera(mousePosition, camera);
-  const result = raycaster.intersectObjects(meshes);
-  hoveredMeshes = result as THREE.Intersection<PieceMesh>[];
-  if (result.length > 0) {
-    const mesh = hoveredMeshes[0].object.parent!;
-    mesh!.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.material.color.set("#f00");
-      }
-    });
-  }
-}
