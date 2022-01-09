@@ -1,13 +1,27 @@
-import "./style.css";
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import * as dat from "lil-gui";
-import { CylinderGeometry, MeshStandardMaterial } from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import * as CANNON from "cannon";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+
+import "./style.css";
 import boardVertexShader from "./shaders/board/vertex.glsl?raw";
 import boardFragmentShader from "./shaders/board/fragment.glsl?raw";
 import { AnimationDispatcher } from "./animation";
+import { ServerInterface } from "./server";
+
+const serverInterface = new ServerInterface();
+serverInterface.onmove = (from, to) => {
+  const matchingPieces = pieces.filter(
+    (piece) => piece.position.x === from.x && piece.position.y === from.y
+  );
+  console.log(from, to);
+  if (!(matchingPieces.length > 0)) throw new Error("uh oh, desync!!");
+  const newTurn = turn === "WHITE" ? "BLACK" : "WHITE";
+  turn = null;
+  movePiece(matchingPieces[0], to, () => {
+    turn = newTurn;
+  });
+};
 
 const physicsWorld = new CANNON.World();
 
@@ -56,7 +70,7 @@ const pieceTypes = [PAWN, BISHOP, KNIGHT, ROOK, KING, QUEEN];
 
 interface Piece {
   physicsBody: CANNON.Body;
-  threeObject: THREE.Mesh<any, MeshStandardMaterial>;
+  threeObject: THREE.Mesh<any, THREE.MeshStandardMaterial>;
   type: PieceType;
   color: Color;
   position: THREE.Vector2;
@@ -121,7 +135,7 @@ function addPiece(
 
   pieces.push({
     physicsBody,
-    threeObject: threeObject as THREE.Mesh<any, MeshStandardMaterial>,
+    threeObject: threeObject as THREE.Mesh<any, THREE.MeshStandardMaterial>,
     type: pieceType,
     color,
     position: new THREE.Vector2(x, y),
@@ -199,10 +213,14 @@ function handleClick(event: MouseEvent | TouchEvent) {
     const boardIntersection = boardRaycaster.intersectObject(board);
     if (boardIntersection.length > 0) {
       const { x, z } = boardIntersection[0].point;
-      const [snappedX, snappedZ] = [Math.floor(x + 0.5), Math.floor(z + 0.5)];
+      const newPos = new THREE.Vector2(
+        Math.floor(x + 0.5),
+        Math.floor(z + 0.5)
+      );
       const newTurn = turn === "WHITE" ? "BLACK" : "WHITE";
       turn = null;
-      movePiece(selectedPiece, new THREE.Vector2(snappedX, snappedZ), () => {
+      serverInterface.move(selectedPiece.position.clone(), newPos);
+      movePiece(selectedPiece, newPos, () => {
         turn = newTurn;
       });
       selectedPiece = null;
@@ -213,7 +231,7 @@ function handleClick(event: MouseEvent | TouchEvent) {
 window.addEventListener("click", handleClick);
 window.addEventListener("touchstart", handleClick);
 
-type PieceMesh = THREE.Mesh<CylinderGeometry, THREE.MeshStandardMaterial>;
+type PieceMesh = THREE.Mesh<THREE.CylinderGeometry, THREE.MeshStandardMaterial>;
 
 const boardGeometry = new THREE.PlaneGeometry(250, 250, 250, 250);
 boardGeometry.rotateX(-Math.PI / 2);
@@ -288,10 +306,6 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setClearColor("#ff8000");
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-const guiItems = {
-  clearColor: "white",
-};
 
 const clock = new THREE.Clock();
 
