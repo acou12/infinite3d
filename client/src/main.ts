@@ -8,6 +8,7 @@ import boardVertexShader from "./shaders/board/vertex.glsl?raw";
 import boardFragmentShader from "./shaders/board/fragment.glsl?raw";
 import { AnimationDispatcher } from "./animation";
 import { ServerInterface } from "./server";
+import { MeshStandardMaterial, Vector3 } from "three";
 
 const serverInterface = new ServerInterface();
 serverInterface.onmove = (from, to) => {
@@ -27,45 +28,27 @@ const physicsWorld = new CANNON.World();
 
 physicsWorld.gravity.set(0, -15, 0);
 
-const boardPhysics = new CANNON.Body({
-  mass: 3000,
-  position: new CANNON.Vec3(3.5, 0.1, 3.5),
-  shape: new CANNON.Box(new CANNON.Vec3(4, 0.05, 4)),
-});
-
-const tablePhysics = new CANNON.Body({
-  mass: 5000,
-  position: new CANNON.Vec3(3.5, -5, 3.5),
-  shape: new CANNON.Box(new CANNON.Vec3(6, 9.7 / 2, 6)),
-});
-
 const floorPhysics = new CANNON.Body({
   mass: 0,
-  position: new CANNON.Vec3(0, -10, 0),
+  position: new CANNON.Vec3(0, 0, 0),
   shape: new CANNON.Plane(),
 });
 
 floorPhysics.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
 
-const bowlingBallMesh = new THREE.Mesh(
-  new THREE.SphereGeometry(4, 32, 32),
-  new THREE.MeshStandardMaterial({ color: "#222" })
-);
+// const bowlingBallMesh = new THREE.Mesh(
+//   new THREE.SphereGeometry(4, 32, 32),
+//   new THREE.MeshStandardMaterial({ color: "#222" })
+// );
 
-const bowlingBallPhysics = new CANNON.Body({
-  mass: 15000,
-  position: new CANNON.Vec3(1000, 2, 0.5),
-  shape: new CANNON.Sphere(bowlingBallMesh.geometry.parameters.radius),
-});
-
-physicsWorld.addBody(bowlingBallPhysics);
-
-bowlingBallPhysics.velocity.x = -300;
+// const bowlingBallPhysics = new CANNON.Body({
+//   mass: 15000,
+//   position: new CANNON.Vec3(1000, 2, 0.5),
+//   shape: new CANNON.Sphere(bowlingBallMesh.geometry.parameters.radius),
+// });
 
 // plane.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
 
-physicsWorld.addBody(boardPhysics);
-physicsWorld.addBody(tablePhysics);
 physicsWorld.addBody(floorPhysics);
 
 const modelLoader = new GLTFLoader();
@@ -182,67 +165,11 @@ function addPieces() {
   addPiece(BISHOP, 5, 7, "BLACK");
   addPiece(QUEEN, 4, 7, "BLACK");
   addPiece(KING, 3, 7, "BLACK");
-  //   for (let x = -8; x < 8; x++)
-  //     for (let y = -8; y < 8; y++) addPiece(PAWN, x, y, "WHITE");
 }
 
 const canvas = document.querySelector("canvas")!;
 
 const scene = new THREE.Scene();
-
-const upperArm = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.5, 0.5, 6, 10),
-  new THREE.MeshStandardMaterial({ color: "purple" })
-);
-upperArm.rotateX(Math.PI / 2);
-const upperArmPivot = new THREE.Group();
-upperArmPivot.add(upperArm);
-upperArm.position.z += 3;
-
-const forearm = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.5, 0.5, 6, 10),
-  new THREE.MeshStandardMaterial({ color: "purple" })
-);
-const forearmPivot = new THREE.Group();
-forearmPivot.add(forearm);
-forearm.rotateX(Math.PI / 2);
-forearm.position.z += 3;
-forearmPivot.position.z += 6;
-forearmPivot.rotation.order = "YXZ";
-
-const hand = new THREE.Mesh(
-  new THREE.SphereGeometry(0.7, 10, 10),
-  new THREE.MeshStandardMaterial({ color: "purple" })
-);
-forearmPivot.add(hand);
-hand.position.z += 6;
-
-const createFinger = (length: number, angle: number) => {
-  const finger = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.1, 0.1, length, 10),
-    new THREE.MeshStandardMaterial({ color: "purple" })
-  );
-  finger.rotation.x = Math.PI / 2;
-  finger.position.z += length / 2;
-  const fingerWrapper = new THREE.Group();
-  fingerWrapper.add(finger);
-  fingerWrapper.rotation.y = angle;
-  hand.add(fingerWrapper);
-};
-
-createFinger(2, 0.3);
-createFinger(2, -0);
-createFinger(2, -0.3);
-createFinger(2, -0.6);
-createFinger(1.5, 1);
-
-const arm = new THREE.Group();
-arm.rotation.order = "YXZ";
-arm.add(upperArmPivot, forearmPivot);
-
-scene.add(arm);
-
-// scene.add(bowlingBallMesh);
 
 // "Chess Board" (https://skfb.ly/6BDGq) by Anthony Yanez is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
 
@@ -257,14 +184,28 @@ window.addEventListener("touchmove", (event: TouchEvent) => {
   mousePosition.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
 });
 
-function handleClick(_event: MouseEvent | TouchEvent) {}
+function handleClick(_event: MouseEvent | TouchEvent) {
+  if (hoveredCard !== undefined) selectedCard = hoveredCard;
+  else if (selectedCard !== undefined && hoveredPoint !== undefined) {
+    hand.remove(selectedCard);
+    cards.splice(cards.indexOf(selectedCard), 1);
+    selectedCard = undefined;
+    pieces.forEach((piece) => {
+      const delta = piece.threeObject.position.clone().sub(hoveredPoint!);
+      const launch = 30 / Math.pow(delta.length(), 2);
+      delta.normalize();
+      delta.multiplyScalar(launch);
+      piece.physicsBody.velocity.set(delta.x, delta.y, delta.z);
+    });
+  }
+}
 
 window.addEventListener("click", handleClick);
 window.addEventListener("touchstart", handleClick);
 
 // type PieceMesh = THREE.Mesh<THREE.CylinderGeometry, THREE.MeshStandardMaterial>;
 
-const boardGeometry = new THREE.PlaneGeometry(8, 8, 8, 8);
+const boardGeometry = new THREE.PlaneGeometry(5000, 5000, 10, 10);
 
 const boardTop = new THREE.Mesh(
   boardGeometry,
@@ -274,34 +215,15 @@ const boardTop = new THREE.Mesh(
   })
 );
 
-const boardBottom = new THREE.Mesh(
-  new THREE.BoxGeometry(8, 8, 0.2, 1, 1, 1),
-  new THREE.MeshStandardMaterial({
-    color: "#111",
-  })
-);
-
 const board = new THREE.Group();
 
-board.add(boardTop, boardBottom);
+board.add(boardTop);
 
 scene.add(board);
-
-boardBottom.position.z -= 0.11;
-boardBottom.position.x += 0.5;
-boardBottom.position.y -= 0.5;
 
 board.rotateX(-Math.PI / 2);
 board.position.x += 3;
 board.position.z += 3;
-
-const table = new THREE.Mesh(
-  new THREE.BoxGeometry(12, 9.7, 12),
-  new THREE.MeshStandardMaterial({ color: "brown" })
-);
-
-scene.add(table);
-scene.add(bowlingBallMesh);
 
 scene.add(new THREE.AmbientLight("white", 0.5));
 const pointLight = new THREE.PointLight("white", 0.5);
@@ -399,60 +321,43 @@ function movePiece(piece: Piece, to: THREE.Vector2, doneCallback?: () => void) {
   });
 }
 
-const stepSize = () => (keyPressed["shift"] ? 0.08 : 0.02);
-
-const keyboardActions: Record<string, () => void> = {
-  w: () => {
-    arm.position.z += stepSize() * 3;
-  },
-  a: () => {
-    arm.position.x += stepSize() * 3;
-  },
-  s: () => {
-    arm.position.z -= stepSize() * 3;
-  },
-  d: () => {
-    arm.position.x -= stepSize() * 3;
-  },
-  q: () => {
-    arm.position.y -= stepSize() * 3;
-  },
-  e: () => {
-    arm.position.y += stepSize() * 3;
-  },
-  t: () => {
-    arm.rotation.x -= stepSize();
-  },
-  f: () => {
-    arm.rotation.y += stepSize();
-  },
-  g: () => {
-    arm.rotation.x += stepSize();
-  },
-  h: () => {
-    arm.rotation.y -= stepSize();
-  },
-  i: () => {
-    forearmPivot.rotation.x -= stepSize();
-  },
-  j: () => {
-    forearmPivot.rotation.y += stepSize();
-  },
-  k: () => {
-    forearmPivot.rotation.x += stepSize();
-  },
-  l: () => {
-    forearmPivot.rotation.y -= stepSize();
-  },
-  "[": () => {},
-  "]": () => {},
-  ";": () => {},
-  "'": () => {},
-  ".": () => {},
-  "/": () => {},
-};
-
 const keyPressed: Record<string, boolean> = {};
+
+const cards: THREE.Mesh[] = [];
+
+const hand = new THREE.Group();
+
+const textureLoader = new THREE.TextureLoader();
+
+textureLoader.loadAsync("/grenade.jpg").then((texture) => {
+  const createCard = () => {
+    const card = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 2, 0.1),
+      new THREE.MeshStandardMaterial({
+        map: texture,
+      })
+    );
+    // card.position.set(0, 0, 0);
+    hand.add(card);
+    cards.push(card);
+    return card;
+  };
+
+  for (let i = 0; i < 10; i++) createCard();
+
+  let i = -cards.length / 2 + 0.5;
+  for (const card of cards) {
+    // card.rotateY(-(i * Math.PI) / 6);
+    // card.rotateX((-i * Math.PI) / 7);
+    card.position.x = i * 1.1;
+    card.position.y -= 2.5;
+    // card.position.z += (i * i) / 10;
+    // card.lookAt(camera.position);
+    i++;
+  }
+});
+
+scene.add(hand);
 
 document.addEventListener("keydown", (event) => {
   keyPressed[event.key.toLowerCase()] = true;
@@ -462,23 +367,51 @@ document.addEventListener("keyup", (event) => {
   keyPressed[event.key.toLowerCase()] = false;
 });
 
+const raycaster = new THREE.Raycaster();
+
+let selectedCard: THREE.Mesh | undefined;
+let hoveredCard: THREE.Mesh | undefined;
+
+let hoveredPoint: THREE.Vector3 | undefined;
+
 function tick() {
   const delta = clock.getDelta();
 
   controls.update();
   animationDispatcher.update(delta);
 
-  // arm.rotation.x += 1 * 0.02;
-  // arm.rotation.y += 2 * 0.02;
-  // arm.rotation.z += 3 * 0.02;
+  raycaster.setFromCamera(mousePosition, camera);
 
-  // forearmPivot.rotation.x += 1 * 0.02;
-  // forearmPivot.rotation.y += 2 * 0.02;
-  // forearmPivot.rotation.z += 3 * 0.02;
+  cards.forEach(
+    (card) =>
+      ((card.material as MeshStandardMaterial).color =
+        card === selectedCard
+          ? new THREE.Color("blue")
+          : new THREE.Color("white"))
+  );
 
-  // forearm.rotation.x += 1 * 0.02;
-  // forearm.rotation.y += 2 * 0.02;
-  // forearm.rotation.z += 3 * 0.02;
+  hoveredCard = undefined;
+
+  const cardIntersections = raycaster.intersectObjects(cards);
+  cardIntersections.forEach((intersection) => {
+    (
+      (intersection.object as THREE.Mesh).material as MeshStandardMaterial
+    ).color = new THREE.Color("red");
+    hoveredCard = intersection.object as THREE.Mesh;
+  });
+
+  hoveredPoint = undefined;
+
+  const boardIntersections = raycaster.intersectObject(board);
+  boardIntersections.forEach((intersection) => {
+    hoveredPoint = intersection.point;
+  });
+
+  const v = new Vector3(0, 0, -5);
+  v.applyQuaternion(camera.quaternion);
+  hand.setRotationFromQuaternion(camera.quaternion);
+  const newPos = camera.position.clone().add(v);
+  hand.position.set(newPos.x, newPos.y, newPos.z);
 
   pieces.forEach((piece) => {
     piece.threeObject.position.x = piece.physicsBody.position.x;
@@ -491,35 +424,7 @@ function tick() {
     piece.threeObject.quaternion.w = piece.physicsBody.quaternion.w;
   });
 
-  board.quaternion.x = boardPhysics.quaternion.x;
-  board.quaternion.y = boardPhysics.quaternion.y;
-  board.quaternion.z = boardPhysics.quaternion.z;
-  board.quaternion.w = boardPhysics.quaternion.w;
-
-  board.rotateX(-Math.PI / 2);
-
-  board.position.x = boardPhysics.position.x - 0.5;
-  board.position.y = boardPhysics.position.y;
-  board.position.z = boardPhysics.position.z - 0.5;
-
-  table.quaternion.x = tablePhysics.quaternion.x;
-  table.quaternion.y = tablePhysics.quaternion.y;
-  table.quaternion.z = tablePhysics.quaternion.z;
-  table.quaternion.w = tablePhysics.quaternion.w;
-
-  table.position.x = tablePhysics.position.x;
-  table.position.y = tablePhysics.position.y;
-  table.position.z = tablePhysics.position.z;
-
-  bowlingBallMesh.position.x = bowlingBallPhysics.position.x;
-  bowlingBallMesh.position.y = bowlingBallPhysics.position.y;
-  bowlingBallMesh.position.z = bowlingBallPhysics.position.z;
-
-  physicsWorld.step(1 / 60, 1 / 144, 1);
-
-  Object.entries(keyboardActions).forEach(([key, action]) => {
-    if (keyPressed[key]) action();
-  });
+  physicsWorld.step(1 / 60, delta, 1);
 
   renderer.render(scene, camera);
 
