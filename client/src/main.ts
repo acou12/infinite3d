@@ -1,10 +1,8 @@
 import * as THREE from "three";
 import "./style.css";
 import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader";
-
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
-import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
 
 import boardVertexShader from "./shaders/board/vertex.glsl?raw";
 import boardFragmentShader from "./shaders/board/fragment.glsl?raw";
@@ -43,18 +41,19 @@ window.addEventListener("resize", () => {
   sizes.width = window.innerWidth;
   sizes.height = window.innerHeight;
 
-  // camera.aspect = sizes.width / sizes.height;
   camera.updateProjectionMatrix();
 
   renderer.setSize(sizes.width, sizes.height);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 });
 
+const DEFAULT_SCALE = 30;
+
 const camera = new THREE.OrthographicCamera(
-  -sizes.width / 2 / 30,
-  sizes.width / 2 / 30,
-  sizes.height / 2 / 30,
-  -sizes.height / 2 / 30,
+  -sizes.width / 2 / DEFAULT_SCALE,
+  sizes.width / 2 / DEFAULT_SCALE,
+  sizes.height / 2 / DEFAULT_SCALE,
+  -sizes.height / 2 / DEFAULT_SCALE,
   1,
   1000
 );
@@ -72,46 +71,13 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
 const composer = new EffectComposer(renderer);
 
-[
-  new RenderPass(scene, camera),
-  // new ShaderPass({
-  //   uniforms: {
-  //     tDiffuse: { value: null },
-  //     opacity: { value: 1.0 },
-  //     ratio: { value: sizes.height / sizes.width },
-  //   },
-
-  //   vertexShader: /* glsl */ `
-  // 	varying vec2 vUv;
-  // 	void main() {
-  // 		vUv = uv;
-  // 		gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
-  // 	}`,
-
-  //   fragmentShader: /* glsl */ `
-  // 	uniform float opacity;
-  // 	uniform sampler2D tDiffuse;
-  // 	uniform float ratio;
-  // 	varying vec2 vUv;
-  // 	void main() {
-  // 		gl_FragColor = texture2D(
-  //       tDiffuse,
-  //       vec2(
-  //         mod((vUv.x) * 10.0, 1.0),
-  //         mod((vUv + (1.0 - 2.0 * vUv.x) * vUv.y) * 10.0, 1.0)
-  //       )
-  //     );
-  // 		gl_FragColor.a *= opacity;
-  //   }`,
-  // }),
-].map((pass) => composer.addPass(pass));
+[new RenderPass(scene, camera)].map((pass) => composer.addPass(pass));
 
 const raycaster = new THREE.Raycaster();
 
 function tick() {
   raycaster.setFromCamera(mousePosition, camera);
 
-  // renderer.render(scene, camera);
   composer.render();
 
   window.requestAnimationFrame(tick);
@@ -136,9 +102,13 @@ window.addEventListener("mousemove", (event: MouseEvent) => {
   if (pressing) {
     camera.position.add(
       new THREE.Vector3(
-        -(mousePosition.x - previousMousePosition.x) / 30 / camera.zoom,
+        -(mousePosition.x - previousMousePosition.x) /
+          DEFAULT_SCALE /
+          camera.zoom,
         0,
-        -(mousePosition.y - previousMousePosition.y) / 30 / camera.zoom
+        -(mousePosition.y - previousMousePosition.y) /
+          DEFAULT_SCALE /
+          camera.zoom
       )
     );
   }
