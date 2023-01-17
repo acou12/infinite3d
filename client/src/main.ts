@@ -33,8 +33,6 @@ board.add(boardTop);
 scene.add(board);
 
 board.rotateX(-Math.PI / 2);
-board.position.x += 3;
-board.position.z += 3;
 
 const sizes = {
   width: window.innerWidth,
@@ -155,32 +153,134 @@ window.addEventListener("wheel", (event: WheelEvent) => {
   camera.updateProjectionMatrix();
 });
 
+type Color = "white" | "black";
+
+type PieceTemplate = {
+  name: string;
+  whiteMesh?: THREE.Group;
+  blackMesh?: THREE.Group;
+};
+
+let pieceTemplates: PieceTemplate[] = [
+  {
+    name: "king",
+  },
+  {
+    name: "knight",
+  },
+  {
+    name: "pawn",
+  },
+  {
+    name: "queen",
+  },
+  {
+    name: "rook",
+  },
+  {
+    name: "bishop",
+  },
+];
+
+const getPieceTemplate = (s: string) => {
+  return pieceTemplates.find((template) => template.name === s)!;
+};
+
+let pieces: THREE.Group[];
+
 const svgLoader = new SVGLoader();
 
-const king = new THREE.Group();
+const setupPieces = () => {
+  type PiecePosition = {
+    name: string;
+    position: { x: number; y: number };
+    color: Color;
+  };
 
-if (false)
-  svgLoader.load("/images/white-king.svg", (data) => {
-    data.paths.forEach((path) => {
-      SVGLoader.createShapes(path).forEach((shape) => {
-        const mesh = new THREE.Mesh(
-          new THREE.ShapeGeometry(shape),
-          new THREE.MeshBasicMaterial({
-            color: path.userData!.style.fill,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-          })
-        );
-        king.add(mesh);
-      });
-    });
-    king.rotateX(Math.PI / 2);
-    king.scale.multiplyScalar(1 / 45);
-    for (let i = 0; i < 100; i++) {
-      const kingClone = king.clone();
-      kingClone.position.set((i % 10) - 0.5, 1, Math.floor(i / 10) - 0.5);
-      scene.add(kingClone);
-    }
+  const piecePositions: PiecePosition[] = [
+    { name: "rook", position: { x: 0, y: 0 }, color: "white" },
+    { name: "knight", position: { x: 1, y: 0 }, color: "white" },
+    { name: "bishop", position: { x: 2, y: 0 }, color: "white" },
+    { name: "king", position: { x: 3, y: 0 }, color: "white" },
+    { name: "queen", position: { x: 4, y: 0 }, color: "white" },
+    { name: "bishop", position: { x: 5, y: 0 }, color: "white" },
+    { name: "knight", position: { x: 6, y: 0 }, color: "white" },
+    { name: "rook", position: { x: 7, y: 0 }, color: "white" },
+
+    ...[...Array(8).keys()].map(
+      (i) =>
+        ({
+          name: "pawn",
+          position: { x: i, y: 1 },
+          color: "white",
+        } as PiecePosition)
+    ),
+
+    { name: "rook", position: { x: 0, y: 7 }, color: "black" },
+    { name: "knight", position: { x: 1, y: 7 }, color: "black" },
+    { name: "bishop", position: { x: 2, y: 7 }, color: "black" },
+    { name: "king", position: { x: 3, y: 7 }, color: "black" },
+    { name: "queen", position: { x: 4, y: 7 }, color: "black" },
+    { name: "bishop", position: { x: 5, y: 7 }, color: "black" },
+    { name: "knight", position: { x: 6, y: 7 }, color: "black" },
+    { name: "rook", position: { x: 7, y: 7 }, color: "black" },
+
+    ...[...Array(8).keys()].map(
+      (i) =>
+        ({
+          name: "pawn",
+          position: { x: i, y: 6 },
+          color: "black",
+        } as PiecePosition)
+    ),
+  ];
+
+  piecePositions.forEach(({ name, position: { x, y }, color }) => {
+    const piece = getPieceTemplate(name)[`${color}Mesh`]!.clone();
+    piece.position.set(x, 1, y);
+    scene.add(piece);
   });
+};
+
+Promise.all(
+  pieceTemplates.flatMap((pieceTemplate) =>
+    (["white", "black"] as Color[]).map(
+      (color) =>
+        new Promise((resolve) => {
+          svgLoader.load(
+            `/images/${color}-${pieceTemplate.name}.svg`,
+            (data) => {
+              const piece = new THREE.Group();
+
+              data.paths.forEach((path) => {
+                SVGLoader.createShapes(path).forEach((shape) => {
+                  const mesh = new THREE.Mesh(
+                    new THREE.ShapeGeometry(shape),
+                    new THREE.MeshBasicMaterial({
+                      color: path.userData!.style.fill,
+                      side: THREE.DoubleSide,
+                      depthWrite: false,
+                    })
+                  );
+                  piece.add(mesh);
+                });
+              });
+
+              piece.rotateX(Math.PI / 2);
+              piece.scale.multiplyScalar(1 / 45);
+
+              piece.position.y = 1;
+
+              pieceTemplate[`${color}Mesh`] = piece;
+
+              resolve(undefined);
+            }
+          );
+        })
+    )
+  )
+).then(() => {
+  setupPieces();
+});
 
 tick();
